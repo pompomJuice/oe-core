@@ -1,0 +1,35 @@
+[PATCH] search libxml2
+
+Upstream-Status: Pending
+
+The libdns.a and libisc.a from bind-9.10.2 maybe need libxml2
+
+Signed-off-by: Roy Li <rongqing.li@windriver.com>
+---
+ configure.ac | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/configure.ac b/configure.ac
+index c9dc8b5..55ea877 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -602,6 +602,16 @@ no)
+ esac
+ AC_SUBST([libbind])
+ 
++# XML support.
++AC_ARG_WITH(libxml2,
++    AS_HELP_STRING([--with-libxml2],[enable XML2 support (default is no)]),
++    [libxml2=$withval],
++    [libxml2=no])
++
++if test x$libxml2 = xyes ; then
++    AC_SEARCH_LIBS(xmlTextWriterEndElement, [xml2],)
++fi
++
+ # OpenLDAP support.
+ AC_ARG_WITH(ldap,
+     AS_HELP_STRING([--with-ldap],[enable OpenLDAP support in dhcpd (default is no)]),
+-- 
+1.9.1
+

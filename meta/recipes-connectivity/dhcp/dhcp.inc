@@ -17,7 +17,9 @@ SRC_URI = "ftp://ftp.isc.org/isc/dhcp/${PV}/dhcp-${PV}.tar.gz \
            file://init-relay file://default-relay \
            file://init-server file://default-server \
            file://dhclient.conf file://dhcpd.conf \
-           file://dhcpd.service file://dhcrelay.service"
+           file://dhcpd.service file://dhcrelay.service \
+           file://0001-search-libxml2.patch \
+"
 
 inherit autotools systemd
 
@@ -35,6 +37,9 @@ EXTRA_OECONF = "--with-srv-lease-file=${localstatedir}/lib/dhcp/dhcpd.leases \
                 --with-cli6-lease-file=${localstatedir}/lib/dhcp/dhclient6.leases \
                 --with-libbind=${STAGING_LIBDIR}/ \
                "
+
+PACKAGECONFIG ?= "libxml2"
+PACKAGECONFIG[libxml2] = "--with-libxml2=yes,--with-libxml2=no,libxml2"
 
 do_install_append () {
 	install -d ${D}${sysconfdir}/init.d
