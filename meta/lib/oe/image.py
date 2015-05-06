@@ -45,10 +45,21 @@ class ImageDepGraph(object):
         self.deps_array = dict()
 
     def _construct_dep_graph(self, image_fstypes):
+        ctypes = self.d.getVar('COMPRESSIONTYPES', True).split()
         graph = dict()
 
         def add_node(node):
             deps = (self.d.getVar('IMAGE_TYPEDEP_' + node, True) or "")
+
+            # Add implicit dependencies for compression types
+            for ctype in ctypes:
+                if node.endswith("." + ctype):
+                    basetype = node[:-len("." + ctype)]
+                    if deps == "":
+                        deps = basetype
+                    else:
+                        deps = "%s %s" % (deps, basetype)
+
             if deps != "":
                 graph[node] = deps
 
@@ -222,8 +233,6 @@ class Image(ImageDepGraph):
                 for ctype in ctypes:
                     if type.endswith("." + ctype):
                         basetype = type[:-len("." + ctype)]
-                        if basetype not in filtered_group:
-                            filtered_group.append(basetype)
                         if basetype not in cimages:
                             cimages[basetype] = []
                         if ctype not in cimages[basetype]:
@@ -232,7 +241,8 @@ class Image(ImageDepGraph):
                 if not basetype and type not in filtered_group:
                     filtered_group.append(type)
 
-            filtered_groups.append(filtered_group)
+            if filtered_group != []:
+                filtered_groups.append(filtered_group)
 
         return (filtered_groups, cimages)
 
