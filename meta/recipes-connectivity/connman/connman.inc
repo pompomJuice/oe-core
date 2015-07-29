@@ -11,7 +11,9 @@ HOMEPAGE = "http://connman.net/"
 BUGTRACKER = "https://01.org/jira/browse/CM"
 LICENSE  = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=12f884d2ae1ff87c09e5b7ccc2c4ca7e \
-                    file://src/main.c;beginline=1;endline=20;md5=d6a1ac98a6791c5294e8a7f176ecd66d"
+                    file://src/main.c;beginline=1;endline=20;md5=486a279a6ab0c8d152bcda3a5b5edc36"
+
+inherit autotools pkgconfig systemd update-rc.d bluetooth
 
 DEPENDS  = "dbus glib-2.0 ppp iptables"
 
@@ -27,22 +29,23 @@ EXTRA_OECONF += "\
     --enable-test \
     --disable-polkit \
     --enable-client \
-    ${@base_contains('DISTRO_FEATURES', 'systemd', '--with-systemdunitdir=${systemd_unitdir}/system/', '--with-systemdunitdir=', d)} \
 "
 
 PACKAGECONFIG ??= "wispr \
-                   ${@base_contains('DISTRO_FEATURES', 'wifi','wifi', '', d)} \
-                   ${@base_contains('DISTRO_FEATURES', 'bluetooth','bluetooth', '', d)} \
-                   ${@base_contains('DISTRO_FEATURES', '3g','3g', '', d)} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', 'systemd','systemd', '', d)} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', 'wifi','wifi', '', d)} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', 'bluetooth', 'bluez', '', d)} \
+                   ${@bb.utils.contains('DISTRO_FEATURES', '3g','3g', '', d)} \
 "
 
 # If you want ConnMan to support VPN, add following statement into
 # local.conf or distro config
 # PACKAGECONFIG_append_pn-connman = " openvpn vpnc l2tp pptp"
 
-PACKAGECONFIG[wifi] = "--enable-wifi, --disable-wifi, wpa-supplicant"
-PACKAGECONFIG[bluetooth] = "--enable-bluetooth, --disable-bluetooth, bluez4"
-PACKAGECONFIG[3g] = "--enable-ofono, --disable-ofono, ofono"
+PACKAGECONFIG[systemd] = "--with-systemdunitdir=${systemd_unitdir}/system/,--with-systemdunitdir="
+PACKAGECONFIG[wifi] = "--enable-wifi, --disable-wifi, wpa-supplicant, wpa-supplicant"
+PACKAGECONFIG[bluez] = "--enable-bluetooth, --disable-bluetooth, ${BLUEZ}, ${BLUEZ}"
+PACKAGECONFIG[3g] = "--enable-ofono, --disable-ofono, ofono, ofono"
 PACKAGECONFIG[tist] = "--enable-tist,--disable-tist,"
 PACKAGECONFIG[openvpn] = "--enable-openvpn --with-openvpn=${sbindir}/openvpn,--disable-openvpn,,openvpn"
 PACKAGECONFIG[vpnc] = "--enable-vpnc --with-vpnc=${sbindir}/vpnc,--disable-vpnc,,vpnc"
@@ -66,31 +69,27 @@ SYSTEMD_SERVICE_${PN} = "connman.service"
 SYSTEMD_SERVICE_${PN}-vpn = "connman-vpn.service"
 SYSTEMD_WIRED_SETUP = "ExecStartPre=-${libdir}/connman/wired-setup"
 
-inherit autotools-brokensep pkgconfig systemd update-rc.d
-
-do_configure_append () {
-	sed -i "s#ExecStart=#${SYSTEMD_WIRED_SETUP}\nExecStart=#" ${S}/src/connman.service
-}
-
 # This allows *everyone* to access ConnMan over DBus, without any access
 # control.  Really the at_console flag should work, which would mean that
 # both this and the xuser patch can be dropped.
 do_compile_append() {
-	sed -i -e s:deny:allow:g src/connman-dbus.conf
-	sed -i -e s:deny:allow:g vpn/vpn-dbus.conf
+	sed -i -e s:deny:allow:g ${S}/src/connman-dbus.conf
+	sed -i -e s:deny:allow:g ${S}/vpn/vpn-dbus.conf
+
+	sed -i "s#ExecStart=#${SYSTEMD_WIRED_SETUP}\nExecStart=#" ${B}/src/connman.service
 }
 
 do_install_append() {
-	if ${@base_contains('DISTRO_FEATURES','sysvinit','true','false',d)}; then
+	if ${@bb.utils.contains('DISTRO_FEATURES','sysvinit','true','false',d)}; then
 		install -d ${D}${sysconfdir}/init.d
 		install -m 0755 ${WORKDIR}/connman ${D}${sysconfdir}/init.d/connman
 		sed -i s%@LIBDIR@%${libdir}% ${D}${sysconfdir}/init.d/connman
 	fi
 
 	install -d ${D}${bindir}
-	install -m 0755 ${S}/tools/*-test ${D}${bindir}
-	if [ -e ${S}/tools/wispr ]; then
-		install -m 0755 ${S}/tools/wispr ${D}${bindir}
+	install -m 0755 ${B}/tools/*-test ${D}${bindir}
+	if [ -e ${B}/tools/wispr ]; then
+		install -m 0755 ${B}/tools/wispr ${D}${bindir}
 	fi
 	install -m 0755 ${B}/client/connmanctl ${D}${bindir}
 
@@ -106,17 +105,14 @@ do_install_append() {
 RPROVIDES_${PN} = "\
 	connman-plugin-loopback \
 	connman-plugin-ethernet \
-	${@base_contains('PACKAGECONFIG', 'bluetooth','connman-plugin-bluetooth', '', d)} \
-	${@base_contains('PACKAGECONFIG', 'wifi','connman-plugin-wifi', '', d)} \
-	${@base_contains('PACKAGECONFIG', '3g','connman-plugin-ofono', '', d)} \
+	${@bb.utils.contains('PACKAGECONFIG', 'bluetooth','connman-plugin-bluetooth', '', d)} \
+	${@bb.utils.contains('PACKAGECONFIG', 'wifi','connman-plugin-wifi', '', d)} \
+	${@bb.utils.contains('PACKAGECONFIG', '3g','connman-plugin-ofono', '', d)} \
 	"
 
 RDEPENDS_${PN} = "\
 	dbus \
-	${@base_contains('PACKAGECONFIG', 'bluetooth', 'bluez4', '', d)} \
-	${@base_contains('PACKAGECONFIG', 'wifi','wpa-supplicant', '', d)} \
-	${@base_contains('PACKAGECONFIG', '3g','ofono', '', d)} \
-	xuser-account \
+	${@base_conditional('ROOTLESS_X', '1', 'xuser-account', '', d)} \
 	"
 
 PACKAGES_DYNAMIC += "^${PN}-plugin-.*"
@@ -188,7 +184,7 @@ to create a VPN connection to OpenVPN server."
 FILES_${PN}-plugin-vpn-openvpn += "${libdir}/connman/scripts/openvpn-script \
                                    ${libdir}/connman/plugins-vpn/openvpn.so"
 RDEPENDS_${PN}-plugin-vpn-openvpn += "${PN}-vpn"
-RRECOMMENDS_${PN} += "${@base_contains('PACKAGECONFIG','openvpn','${PN}-plugin-vpn-openvpn', '', d)}"
+RRECOMMENDS_${PN} += "${@bb.utils.contains('PACKAGECONFIG','openvpn','${PN}-plugin-vpn-openvpn', '', d)}"
 
 SUMMARY_${PN}-plugin-vpn-vpnc = "A vpnc plugin for ConnMan VPN"
 DESCRIPTION_${PN}-plugin-vpn-vpnc = "The ConnMan vpnc plugin uses vpnc client \
@@ -196,7 +192,7 @@ to create a VPN connection to Cisco3000 VPN Concentrator."
 FILES_${PN}-plugin-vpn-vpnc += "${libdir}/connman/scripts/openconnect-script \
                                 ${libdir}/connman/plugins-vpn/vpnc.so"
 RDEPENDS_${PN}-plugin-vpn-vpnc += "${PN}-vpn"
-RRECOMMENDS_${PN} += "${@base_contains('PACKAGECONFIG','vpnc','${PN}-plugin-vpn-vpnc', '', d)}"
+RRECOMMENDS_${PN} += "${@bb.utils.contains('PACKAGECONFIG','vpnc','${PN}-plugin-vpn-vpnc', '', d)}"
 
 SUMMARY_${PN}-plugin-vpn-l2tp = "A L2TP plugin for ConnMan VPN"
 DESCRIPTION_${PN}-plugin-vpn-l2tp = "The ConnMan L2TP plugin uses xl2tpd daemon \
@@ -204,7 +200,7 @@ to create a VPN connection to L2TP server."
 FILES_${PN}-plugin-vpn-l2tp += "${libdir}/connman/scripts/libppp-plugin.so* \
                                 ${libdir}/connman/plugins-vpn/l2tp.so"
 RDEPENDS_${PN}-plugin-vpn-l2tp += "${PN}-vpn"
-RRECOMMENDS_${PN} += "${@base_contains('PACKAGECONFIG','l2tp','${PN}-plugin-vpn-l2tp', '', d)}"
+RRECOMMENDS_${PN} += "${@bb.utils.contains('PACKAGECONFIG','l2tp','${PN}-plugin-vpn-l2tp', '', d)}"
 
 SUMMARY_${PN}-plugin-vpn-pptp = "A PPTP plugin for ConnMan VPN"
 DESCRIPTION_${PN}-plugin-vpn-pptp = "The ConnMan PPTP plugin uses pptp-linux client \
@@ -212,4 +208,4 @@ to create a VPN connection to PPTP server."
 FILES_${PN}-plugin-vpn-pptp += "${libdir}/connman/scripts/libppp-plugin.so* \
                                 ${libdir}/connman/plugins-vpn/pptp.so"
 RDEPENDS_${PN}-plugin-vpn-pptp += "${PN}-vpn"
-RRECOMMENDS_${PN} += "${@base_contains('PACKAGECONFIG','pptp','${PN}-plugin-vpn-pptp', '', d)}"
+RRECOMMENDS_${PN} += "${@bb.utils.contains('PACKAGECONFIG','pptp','${PN}-plugin-vpn-pptp', '', d)}"
