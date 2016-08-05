@@ -41,7 +41,8 @@ EXTRA_OECONF = "--with-db-uniquename=_pam \
                 --libdir=${base_libdir} \
                 --disable-nis \
                 --disable-regenerate-docu \
-		--disable-prelude"
+		--disable-prelude\ 
+		--disable-regenerate-docu"
 
 CFLAGS_append = " -fPIC "
 
@@ -58,6 +59,10 @@ FILES_${PN} = "${base_libdir}/lib*${SOLIBS}"
 FILES_${PN}-dev += "${base_libdir}/security/*.la ${base_libdir}/*.la ${base_libdir}/lib*${SOLIBSDEV}"
 FILES_${PN}-runtime = "${sysconfdir}"
 FILES_${PN}-xtests = "${datadir}/Linux-PAM/xtests"
+FILES_${PN}-dbg += "${base_libdir}/security/.debug \
+                    ${base_libdir}/security/pam_filter/.debug \
+                    ${datadir}/Linux-PAM/xtests/.debug"
+
 
 PACKAGES_DYNAMIC += "^${MLPREFIX}pam-plugin-.*"
 
